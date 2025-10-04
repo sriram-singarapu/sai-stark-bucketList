@@ -28,7 +28,10 @@ export default function Portfolio() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await fetch("/api/profile", { cache: "no-store" });
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/profile`,
+          { cache: "no-store" }
+        );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data: Profile = await res.json();
         setProfile(data);
