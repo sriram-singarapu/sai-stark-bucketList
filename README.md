@@ -2,6 +2,8 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+//seed - node -r dotenv/config scripts/seed.js dotenv_config_path=.env
+
 First, run the development server:
 
 ```bash
