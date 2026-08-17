@@ -11,10 +11,7 @@ import {
   Lock,
   Unlock,
   Search,
-  Mountain,
-  Waves,
   Sparkles,
-  Flame,
   Calendar,
   X,
   RefreshCw,
@@ -184,7 +181,6 @@ export default function AdminPage() {
         setStats(data.stats || null);
       }
 
-      // Load gallery
       const gRes = await fetch("/api/gallery");
       if (gRes.ok) {
         const gData = await gRes.json();
@@ -449,23 +445,6 @@ export default function AdminPage() {
     return groups;
   }, [filteredItems]);
 
-  const trekStats = useMemo(() => {
-    const treks = items.filter(
-      (i) =>
-        i.category === "Trekking & Expeditions" ||
-        i.subcategory === "Mountains & Wilderness"
-    );
-    const completedTreks = treks.filter((i) => i.isCompleted).length;
-    return {
-      total: treks.length,
-      completed: completedTreks,
-      percentage:
-        treks.length > 0
-          ? Number(((completedTreks / treks.length) * 100).toFixed(1))
-          : 0,
-    };
-  }, [items]);
-
   // Login view
   if (!isAdmin) {
     return (
@@ -672,7 +651,6 @@ export default function AdminPage() {
         {/* Admin Dashboard Stats Hero */}
         <section className={`rounded-2xl p-6 border ${isDark ? "bg-[#0c101c] border-white/10" : "bg-white border-slate-200 shadow-sm"}`}>
           <div className="grid lg:grid-cols-12 gap-6 items-center">
-            {/* Stats Left */}
             <div className="lg:col-span-7 space-y-3">
               <h2 className="text-2xl font-bold tracking-tight">
                 Bucket List Control Center
@@ -704,7 +682,6 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* Stats Gauge Right */}
             <div className={`lg:col-span-5 flex flex-col items-center justify-center p-4 rounded-xl border ${isDark ? "bg-white/[0.02] border-white/5" : "bg-slate-50 border-slate-200"}`}>
               <div className="relative flex items-center justify-center">
                 <svg className="w-36 h-36 transform -rotate-90">
