@@ -2,7 +2,7 @@
 import User from "../../models/User"; // the model defined above
 import ConnectDB from "../../db/dbConnect";
 export const dynamic = "force-dynamic"; // avoid static caching
-
+export const runtime = "nodejs";
 export async function GET() {
   try {
     await ConnectDB();

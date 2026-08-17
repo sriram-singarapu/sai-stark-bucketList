@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Sai Stark's Portfolio",
+  title: "🌟 Sai Stark's Ultimate Bucket List | 78 Life Experiences",
   description:
-    "A personal portfolio website showcasing my adventures and dreams.",
+    "Explore Sai Stark's Ultimate Life Experiences Bucket List: 78 extreme adventures, high-altitude expeditions, dream trips, and personal milestones.",
   icons: {
     icon: [
       { url: "/IMG-20250714-WA0063.jpg", sizes: "32x32", type: "image/jpg" },
@@ -30,9 +30,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[#070b14] text-slate-100 min-h-screen`}
       >
         {children}
       </body>
