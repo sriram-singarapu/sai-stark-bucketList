@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import {
   CheckCircle2,
@@ -21,6 +21,10 @@ import {
   MapPin,
   ArrowLeft,
   Eye,
+  Upload,
+  Image as ImageIcon,
+  Sun,
+  Moon,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 
@@ -86,9 +90,15 @@ const CATEGORIES_LIST = [
 
 export default function AdminPage() {
   const [items, setItems] = useState<BucketItemType[]>([]);
+  const [gallery, setGallery] = useState<string[]>([]);
   const [stats, setStats] = useState<StatsType | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isDark, setIsDark] = useState(true);
+
+  // Gallery Upload
+  const [isUploading, setIsUploading] = useState(false);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   // Filters
   const [selectedCategory, setSelectedCategory] = useState("All");
@@ -131,6 +141,29 @@ export default function AdminPage() {
     });
   };
 
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("theme");
+    if (savedTheme === "light") {
+      setIsDark(false);
+    } else {
+      setIsDark(true);
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const newDark = !isDark;
+    setIsDark(newDark);
+    if (newDark) {
+      document.documentElement.classList.add("dark");
+      document.documentElement.classList.remove("light");
+      localStorage.setItem("theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      document.documentElement.classList.add("light");
+      localStorage.setItem("theme", "light");
+    }
+  };
+
   const checkAuth = async () => {
     try {
       const res = await fetch("/api/auth/check");
@@ -149,6 +182,13 @@ export default function AdminPage() {
       if (data.success) {
         setItems(data.items || []);
         setStats(data.stats || null);
+      }
+
+      // Load gallery
+      const gRes = await fetch("/api/gallery");
+      if (gRes.ok) {
+        const gData = await gRes.json();
+        if (gData.gallery) setGallery(gData.gallery);
       }
     } catch (err) {
       console.error("Failed to load bucket list:", err);
@@ -220,6 +260,54 @@ export default function AdminPage() {
       console.error("Toggle error:", err);
     } finally {
       setActionLoadingId(null);
+    }
+  };
+
+  // Upload Photo to Cloudinary
+  const handleGalleryUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsUploading(true);
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/gallery", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Upload failed");
+
+      if (data.gallery) {
+        setGallery(data.gallery);
+        showToast("Photo uploaded to Cloudinary successfully! 📸");
+      }
+    } catch (err: any) {
+      alert(err.message || "Failed to upload to Cloudinary");
+    } finally {
+      setIsUploading(false);
+      if (galleryInputRef.current) galleryInputRef.current.value = "";
+    }
+  };
+
+  const handleDeleteImage = async (imgUrl: string) => {
+    if (!confirm("Delete this photo from gallery?")) return;
+    try {
+      const res = await fetch("/api/gallery", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageUrl: imgUrl }),
+      });
+      const data = await res.json();
+      if (data.gallery) {
+        setGallery(data.gallery);
+        showToast("Photo deleted");
+      }
+    } catch (err) {
+      console.error("Delete error:", err);
     }
   };
 
@@ -378,27 +466,27 @@ export default function AdminPage() {
     };
   }, [items]);
 
-  // Login view (Secure, no passwords or hints shown)
+  // Login view
   if (!isAdmin) {
     return (
-      <div className="min-h-screen bg-[#06080e] text-slate-100 flex items-center justify-center p-4">
-        <div className="w-full max-w-sm bg-[#0c101c] border border-white/10 rounded-2xl p-7 shadow-2xl space-y-6 relative">
+      <div className={`min-h-screen flex items-center justify-center p-4 ${isDark ? "bg-[#06080e] text-slate-100" : "bg-slate-100 text-slate-900"}`}>
+        <div className={`w-full max-w-sm rounded-2xl p-7 shadow-2xl space-y-6 relative border ${isDark ? "bg-[#0c101c] border-white/10" : "bg-white border-slate-200"}`}>
           <div className="flex justify-between items-center">
             <Link
               href="/"
-              className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors"
+              className={`inline-flex items-center gap-1.5 text-xs transition-colors ${isDark ? "text-slate-400 hover:text-white" : "text-slate-500 hover:text-slate-900"}`}
             >
               <ArrowLeft className="w-4 h-4" /> Back to Home
             </Link>
           </div>
 
           <div className="text-center space-y-2">
-            <div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto text-slate-200 shadow-inner">
-              <Lock className="w-5 h-5 text-amber-400" />
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center mx-auto shadow-inner border ${isDark ? "bg-white/5 border-white/10" : "bg-slate-100 border-slate-200"}`}>
+              <Lock className="w-5 h-5 text-amber-500" />
             </div>
-            <h2 className="text-xl font-semibold text-white tracking-tight">Admin Portal</h2>
-            <p className="text-xs text-slate-400">
-              Enter your admin passcode to manage goals and progress.
+            <h2 className="text-xl font-semibold tracking-tight">Admin Portal</h2>
+            <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+              Enter admin password to manage goals and upload gallery photos.
             </p>
           </div>
 
@@ -409,12 +497,16 @@ export default function AdminPage() {
                 placeholder="Enter admin password"
                 value={adminPassword}
                 onChange={(e) => setAdminPassword(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/10 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/50 transition-colors"
+                className={`w-full px-4 py-2.5 rounded-xl border text-sm focus:outline-none transition-colors ${
+                  isDark
+                    ? "bg-black/40 border-white/10 text-white placeholder-slate-500 focus:border-amber-500/50"
+                    : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:border-amber-500"
+                }`}
                 autoFocus
                 required
               />
               {loginError && (
-                <p className="text-xs text-rose-400 mt-2 font-medium">
+                <p className="text-xs text-rose-500 mt-2 font-medium">
                   {loginError}
                 </p>
               )}
@@ -435,7 +527,16 @@ export default function AdminPage() {
 
   // Admin Dashboard Mode
   return (
-    <div className="min-h-screen bg-[#06080e] text-slate-100 flex flex-col selection:bg-emerald-500 selection:text-black">
+    <div className={`min-h-screen flex flex-col transition-colors duration-300 ${isDark ? "bg-[#06080e] text-slate-100" : "bg-[#f8fafc] text-slate-900"}`}>
+      {/* Hidden Gallery Input */}
+      <input
+        type="file"
+        ref={galleryInputRef}
+        onChange={handleGalleryUpload}
+        accept="image/*"
+        className="hidden"
+      />
+
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed top-6 right-6 z-50 animate-bounce bg-emerald-500 text-slate-950 px-4 py-2 rounded-xl text-xs font-semibold shadow-xl flex items-center gap-2 border border-emerald-400">
@@ -445,11 +546,11 @@ export default function AdminPage() {
       )}
 
       {/* Admin Top Navbar */}
-      <header className="sticky top-0 z-40 bg-[#090d16]/90 backdrop-blur-xl border-b border-white/10 px-4 lg:px-8 py-3 flex items-center justify-between">
+      <header className={`sticky top-0 z-40 backdrop-blur-xl border-b px-4 lg:px-8 py-3 flex items-center justify-between ${isDark ? "bg-[#090d16]/90 border-white/10" : "bg-white/90 border-slate-200 shadow-sm"}`}>
         <div className="flex items-center gap-3">
           <Link
             href="/"
-            className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors"
+            className={`p-2 rounded-lg transition-colors ${isDark ? "bg-white/5 hover:bg-white/10 text-slate-300" : "bg-slate-100 hover:bg-slate-200 text-slate-700"}`}
             title="View Public View"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -457,7 +558,7 @@ export default function AdminPage() {
           <div>
             <h1 className="font-semibold text-base tracking-tight flex items-center gap-2">
               <span>Admin Management</span>
-              <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20 font-medium">
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 font-medium">
                 Active Session
               </span>
             </h1>
@@ -465,13 +566,34 @@ export default function AdminPage() {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
+          <button
+            onClick={toggleTheme}
+            className={`p-2 rounded-lg border transition-all ${
+              isDark ? "bg-white/5 text-amber-400 border-white/10" : "bg-slate-100 text-slate-700 border-slate-200"
+            }`}
+            title="Toggle theme"
+          >
+            {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </button>
+
           <Link
             href="/"
-            className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-lg text-xs border border-white/10 transition-colors flex items-center gap-1.5"
+            className={`px-3 py-1.5 rounded-lg text-xs border transition-colors flex items-center gap-1.5 ${
+              isDark ? "bg-white/5 hover:bg-white/10 text-slate-300 border-white/10" : "bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200"
+            }`}
           >
-            <Eye className="w-3.5 h-3.5 text-cyan-400" />
-            <span className="hidden sm:inline">View Public Page</span>
+            <Eye className="w-3.5 h-3.5 text-cyan-500" />
+            <span className="hidden sm:inline">View Public</span>
           </Link>
+
+          <button
+            onClick={() => galleryInputRef.current?.click()}
+            disabled={isUploading}
+            className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold rounded-lg text-xs transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            <span>Upload Photo</span>
+          </button>
 
           <button
             onClick={openAddModal}
@@ -483,25 +605,79 @@ export default function AdminPage() {
 
           <button
             onClick={handleLogout}
-            className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-lg text-xs border border-white/10 transition-colors flex items-center gap-1.5"
+            className={`px-3 py-1.5 rounded-lg text-xs border transition-colors flex items-center gap-1.5 ${
+              isDark ? "bg-white/5 hover:bg-white/10 text-slate-300 border-white/10" : "bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200"
+            }`}
           >
-            <Unlock className="w-3.5 h-3.5 text-amber-400" />
+            <Unlock className="w-3.5 h-3.5 text-amber-500" />
             <span className="hidden sm:inline">Logout</span>
           </button>
         </div>
       </header>
 
       {/* Main Admin Area */}
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 lg:px-8 py-8 space-y-6">
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 lg:px-8 py-8 space-y-8">
+        {/* Gallery Cloudinary Manager Section */}
+        <section className={`rounded-2xl p-5 border ${isDark ? "bg-[#0c101c] border-white/10" : "bg-white border-slate-200 shadow-sm"}`}>
+          <div className="flex items-center justify-between pb-4 border-b border-white/5">
+            <div className="space-y-1">
+              <h3 className="text-base font-bold flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-emerald-500" />
+                <span>Gallery Photos (Cloudinary)</span>
+              </h3>
+              <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                Upload images directly to Cloudinary storage. Delete anytime.
+              </p>
+            </div>
+
+            <button
+              onClick={() => galleryInputRef.current?.click()}
+              disabled={isUploading}
+              className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs inline-flex items-center gap-1.5 shadow-sm"
+            >
+              {isUploading ? (
+                <span>Uploading...</span>
+              ) : (
+                <>
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Upload Image</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3 pt-4">
+            {gallery.map((img, i) => (
+              <div
+                key={i}
+                className="relative aspect-square rounded-xl overflow-hidden group border border-white/10"
+              >
+                <img
+                  src={img}
+                  alt={`Gallery ${i}`}
+                  className="w-full h-full object-cover"
+                />
+                <button
+                  onClick={() => handleDeleteImage(img)}
+                  className="absolute top-1.5 right-1.5 p-1 bg-rose-600/90 text-white rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="Delete from gallery"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+
         {/* Admin Dashboard Stats Hero */}
-        <section className="rounded-2xl p-6 border border-white/10 bg-[#0c101c] backdrop-blur-xl shadow-xl">
+        <section className={`rounded-2xl p-6 border ${isDark ? "bg-[#0c101c] border-white/10" : "bg-white border-slate-200 shadow-sm"}`}>
           <div className="grid lg:grid-cols-12 gap-6 items-center">
             {/* Stats Left */}
             <div className="lg:col-span-7 space-y-3">
-              <h2 className="text-2xl font-bold text-white tracking-tight">
+              <h2 className="text-2xl font-bold tracking-tight">
                 Bucket List Control Center
               </h2>
-              <p className="text-slate-400 text-xs sm:text-sm leading-relaxed">
+              <p className={`text-xs sm:text-sm leading-relaxed ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                 Click any item checkmark to toggle completion status. Add, edit, or delete milestones anytime.
               </p>
 
@@ -516,7 +692,11 @@ export default function AdminPage() {
                 <button
                   onClick={handleReseed}
                   disabled={isSeeding}
-                  className="px-3 py-2 bg-white/5 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 rounded-xl text-xs border border-white/10 transition-colors inline-flex items-center gap-1.5"
+                  className={`px-3 py-2 rounded-xl text-xs border transition-colors inline-flex items-center gap-1.5 ${
+                    isDark
+                      ? "bg-white/5 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 border-white/10"
+                      : "bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-600 border-slate-200"
+                  }`}
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${isSeeding ? "animate-spin" : ""}`} />
                   <span>Reload 78 Defaults</span>
@@ -525,7 +705,7 @@ export default function AdminPage() {
             </div>
 
             {/* Stats Gauge Right */}
-            <div className="lg:col-span-5 flex flex-col items-center justify-center p-4 rounded-xl bg-white/[0.02] border border-white/5">
+            <div className={`lg:col-span-5 flex flex-col items-center justify-center p-4 rounded-xl border ${isDark ? "bg-white/[0.02] border-white/5" : "bg-slate-50 border-slate-200"}`}>
               <div className="relative flex items-center justify-center">
                 <svg className="w-36 h-36 transform -rotate-90">
                   <circle
@@ -534,7 +714,7 @@ export default function AdminPage() {
                     r="58"
                     stroke="currentColor"
                     strokeWidth="10"
-                    className="text-slate-800"
+                    className={isDark ? "text-slate-800" : "text-slate-200"}
                     fill="transparent"
                   />
                   <circle
@@ -557,29 +737,29 @@ export default function AdminPage() {
                 </svg>
 
                 <div className="absolute flex flex-col items-center justify-center text-center">
-                  <span className="text-2xl font-bold text-white">
+                  <span className="text-2xl font-bold">
                     {stats ? `${stats.percentage}%` : "0%"}
                   </span>
-                  <span className="text-[10px] uppercase tracking-wider text-emerald-400 font-semibold">
+                  <span className="text-[10px] uppercase tracking-wider text-emerald-500 font-semibold">
                     Completed
                   </span>
                 </div>
               </div>
 
-              <div className="w-full mt-3 grid grid-cols-3 gap-2 text-center pt-3 border-t border-white/5">
-                <div className="p-1.5 rounded-lg bg-white/5">
-                  <p className="text-[10px] text-slate-400">Total</p>
-                  <p className="text-sm font-bold text-white">{stats?.total || 0}</p>
+              <div className={`w-full mt-3 grid grid-cols-3 gap-2 text-center pt-3 border-t ${isDark ? "border-white/5" : "border-slate-200"}`}>
+                <div className={`p-1.5 rounded-lg ${isDark ? "bg-white/5" : "bg-white border border-slate-200"}`}>
+                  <p className="text-[10px] text-slate-500">Total</p>
+                  <p className="text-sm font-bold">{stats?.total || 0}</p>
                 </div>
                 <div className="p-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                  <p className="text-[10px] text-emerald-400">Done</p>
-                  <p className="text-sm font-bold text-emerald-300">
+                  <p className="text-[10px] text-emerald-500">Done</p>
+                  <p className="text-sm font-bold text-emerald-500">
                     {stats?.completed || 0}
                   </p>
                 </div>
                 <div className="p-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
-                  <p className="text-[10px] text-cyan-400">Pending</p>
-                  <p className="text-sm font-bold text-cyan-300">
+                  <p className="text-[10px] text-cyan-500">Pending</p>
+                  <p className="text-sm font-bold text-cyan-500">
                     {stats?.pending || 0}
                   </p>
                 </div>
@@ -588,81 +768,38 @@ export default function AdminPage() {
           </div>
         </section>
 
-        {/* Milestone Cards Overview */}
-        <section className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="p-4 rounded-xl bg-[#0c101c] border border-white/5 flex items-center justify-between">
-            <div className="space-y-0.5">
-              <span className="text-[11px] font-semibold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Mountain className="w-3.5 h-3.5" /> High Altitude & Treks
-              </span>
-              <p className="text-base font-bold text-white">
-                {trekStats.completed} / {trekStats.total} Done
-              </p>
-            </div>
-            <span className="text-lg font-bold text-amber-400">
-              {trekStats.percentage}%
-            </span>
-          </div>
-
-          <div className="p-4 rounded-xl bg-[#0c101c] border border-white/5 flex items-center justify-between">
-            <div className="space-y-0.5">
-              <span className="text-[11px] font-semibold text-rose-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Flame className="w-3.5 h-3.5" /> Extreme Thrills
-              </span>
-              <p className="text-base font-bold text-white">
-                {stats?.categoryStats?.["One-Time Extreme Thrill Activities"]?.completed || 0} /{" "}
-                {stats?.categoryStats?.["One-Time Extreme Thrill Activities"]?.total || 11} Done
-              </p>
-            </div>
-            <span className="text-lg font-bold text-rose-400">
-              {stats?.categoryStats?.["One-Time Extreme Thrill Activities"]?.percentage || 0}%
-            </span>
-          </div>
-
-          <div className="p-4 rounded-xl bg-[#0c101c] border border-white/5 flex items-center justify-between">
-            <div className="space-y-0.5">
-              <span className="text-[11px] font-semibold text-cyan-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Waves className="w-3.5 h-3.5" /> Water & Wilderness
-              </span>
-              <p className="text-base font-bold text-white">
-                {stats?.categoryStats?.["Adventure & Thrill Experiences"]?.completed || 0} /{" "}
-                {stats?.categoryStats?.["Adventure & Thrill Experiences"]?.total || 46} Done
-              </p>
-            </div>
-            <span className="text-lg font-bold text-cyan-400">
-              {stats?.categoryStats?.["Adventure & Thrill Experiences"]?.percentage || 0}%
-            </span>
-          </div>
-        </section>
-
         {/* Filter Controls */}
         <section className="space-y-3">
           <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
             <div className="relative flex-1">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+              <Search className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? "text-slate-500" : "text-slate-400"}`} />
               <input
                 type="text"
                 placeholder="Search goals..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 rounded-xl bg-black/40 border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-white/20"
+                className={`w-full pl-10 pr-4 py-2 rounded-xl border text-xs focus:outline-none ${
+                  isDark
+                    ? "bg-black/40 border-white/10 text-white placeholder-slate-500 focus:border-white/20"
+                    : "bg-white border-slate-200 text-slate-900 placeholder-slate-400 focus:border-slate-300"
+                }`}
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery("")}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                  className={`absolute right-3.5 top-1/2 -translate-y-1/2 ${isDark ? "text-slate-400 hover:text-white" : "text-slate-400 hover:text-slate-800"}`}
                 >
                   <X className="w-4 h-4" />
                 </button>
               )}
             </div>
 
-            <div className="flex items-center p-1 bg-white/5 rounded-xl border border-white/10 self-start sm:self-auto">
+            <div className={`flex items-center p-1 rounded-xl border self-start sm:self-auto ${isDark ? "bg-white/5 border-white/10" : "bg-slate-100 border-slate-200"}`}>
               <button
                 onClick={() => setStatusFilter("all")}
                 className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
                   statusFilter === "all"
-                    ? "bg-slate-700 text-white"
+                    ? isDark ? "bg-slate-700 text-white" : "bg-white text-slate-900 shadow-sm"
                     : "text-slate-400 hover:text-slate-200"
                 }`}
               >
@@ -703,8 +840,8 @@ export default function AdminPage() {
                   onClick={() => setSelectedCategory(cat)}
                   className={`px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-all flex items-center gap-1.5 ${
                     isSelected
-                      ? "bg-white text-slate-950 font-bold"
-                      : "bg-white/5 text-slate-300 hover:bg-white/10 border border-white/5"
+                      ? isDark ? "bg-white text-slate-950 font-bold" : "bg-slate-900 text-white font-bold"
+                      : isDark ? "bg-white/5 text-slate-300 hover:bg-white/10 border border-white/5" : "bg-slate-100 text-slate-600 border border-slate-200"
                   }`}
                 >
                   <span>{icon}</span>
@@ -733,24 +870,24 @@ export default function AdminPage() {
 
               return (
                 <div key={groupTitle} className="space-y-3">
-                  <div className="flex items-center justify-between pb-2 border-b border-white/5">
+                  <div className={`flex items-center justify-between pb-2 border-b ${isDark ? "border-white/5" : "border-slate-200"}`}>
                     <div className="flex items-center gap-2">
-                      <h3 className="text-sm sm:text-base font-semibold text-white">
+                      <h3 className={`text-sm sm:text-base font-semibold ${isDark ? "text-white" : "text-slate-900"}`}>
                         {groupTitle}
                       </h3>
-                      <span className="text-[11px] px-2 py-0.5 rounded bg-white/5 text-slate-400">
+                      <span className={`text-[11px] px-2 py-0.5 rounded ${isDark ? "bg-white/5 text-slate-400" : "bg-slate-100 text-slate-600"}`}>
                         {completedInGroup}/{groupGoals.length}
                       </span>
                     </div>
 
                     <div className="flex items-center gap-2 w-32">
-                      <div className="flex-1 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                      <div className={`flex-1 h-1.5 rounded-full overflow-hidden ${isDark ? "bg-slate-800" : "bg-slate-200"}`}>
                         <div
                           className="h-full bg-emerald-500 rounded-full transition-all duration-500"
                           style={{ width: `${groupPercentage}%` }}
                         />
                       </div>
-                      <span className="text-[11px] font-semibold text-emerald-400">
+                      <span className="text-[11px] font-semibold text-emerald-500">
                         {groupPercentage}%
                       </span>
                     </div>
@@ -766,8 +903,12 @@ export default function AdminPage() {
                           key={item._id}
                           className={`rounded-xl p-3.5 transition-all flex flex-col justify-between border ${
                             isComplete
-                              ? "bg-emerald-950/20 border-emerald-500/30"
-                              : "bg-[#0c101c] border-white/5 hover:border-white/15"
+                              ? isDark
+                                ? "bg-emerald-950/20 border-emerald-500/30"
+                                : "bg-emerald-50/60 border-emerald-300"
+                              : isDark
+                                ? "bg-[#0c101c] border-white/5 hover:border-white/15"
+                                : "bg-white border-slate-200 hover:border-slate-300 shadow-sm"
                           }`}
                         >
                           <div className="space-y-2">
@@ -779,9 +920,9 @@ export default function AdminPage() {
                                 title={isComplete ? "Mark as pending" : "Mark as completed"}
                               >
                                 {isComplete ? (
-                                  <CheckCircle2 className="w-5 h-5 text-emerald-400 fill-emerald-500/20" />
+                                  <CheckCircle2 className="w-5 h-5 text-emerald-500 fill-emerald-500/20" />
                                 ) : (
-                                  <Circle className="w-5 h-5 text-slate-600 hover:text-slate-400" />
+                                  <Circle className={`w-5 h-5 ${isDark ? "text-slate-600 hover:text-slate-400" : "text-slate-300 hover:text-slate-500"}`} />
                                 )}
                               </button>
 
@@ -789,8 +930,8 @@ export default function AdminPage() {
                                 <p
                                   className={`text-xs sm:text-sm font-medium leading-snug break-words ${
                                     isComplete
-                                      ? "text-emerald-200 line-through/60"
-                                      : "text-slate-200"
+                                      ? "text-emerald-600 dark:text-emerald-200 line-through/60"
+                                      : isDark ? "text-slate-200" : "text-slate-900"
                                   }`}
                                 >
                                   <span className="mr-1">{item.emoji}</span>
@@ -799,7 +940,7 @@ export default function AdminPage() {
 
                                 <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
                                   {isComplete && item.completedAt && (
-                                    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
                                       <Calendar className="w-2.5 h-2.5" />
                                       {new Date(item.completedAt).toLocaleDateString("en-US", {
                                         month: "short",
@@ -808,7 +949,7 @@ export default function AdminPage() {
                                     </span>
                                   )}
                                   {item.location && (
-                                    <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 bg-white/5 px-1.5 py-0.5 rounded">
+                                    <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${isDark ? "text-slate-400 bg-white/5" : "text-slate-500 bg-slate-100"}`}>
                                       <MapPin className="w-2.5 h-2.5" />
                                       {item.location}
                                     </span>
@@ -818,23 +959,23 @@ export default function AdminPage() {
                             </div>
 
                             {item.notes && (
-                              <p className="text-[11px] text-slate-400 bg-black/30 p-1.5 rounded border border-white/5 italic">
+                              <p className={`text-[11px] p-1.5 rounded border italic ${isDark ? "text-slate-400 bg-black/30 border-white/5" : "text-slate-600 bg-slate-50 border-slate-200"}`}>
                                 &ldquo;{item.notes}&rdquo;
                               </p>
                             )}
                           </div>
 
-                          <div className="mt-2.5 pt-2 border-t border-white/5 flex items-center justify-end gap-1">
+                          <div className={`mt-2.5 pt-2 border-t flex items-center justify-end gap-1 ${isDark ? "border-white/5" : "border-slate-100"}`}>
                             <button
                               onClick={() => openEditModal(item)}
-                              className="p-1 text-slate-500 hover:text-cyan-300 rounded transition-colors"
+                              className="p-1 text-slate-400 hover:text-cyan-500 rounded transition-colors"
                               title="Edit Goal"
                             >
                               <Edit3 className="w-3.5 h-3.5" />
                             </button>
                             <button
                               onClick={() => handleDelete(item)}
-                              className="p-1 text-slate-500 hover:text-rose-400 rounded transition-colors"
+                              className="p-1 text-slate-400 hover:text-rose-500 rounded transition-colors"
                               title="Delete Goal"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -854,16 +995,16 @@ export default function AdminPage() {
       {/* Add / Edit Goal Modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-[#0c101c] border border-white/10 rounded-2xl p-6 shadow-2xl space-y-4 relative max-h-[90vh] overflow-y-auto">
+          <div className={`w-full max-w-md rounded-2xl p-6 shadow-2xl space-y-4 relative max-h-[90vh] overflow-y-auto border ${isDark ? "bg-[#0c101c] border-white/10 text-white" : "bg-white border-slate-200 text-slate-900"}`}>
             <button
               onClick={() => setShowAddModal(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-white"
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-white"
             >
               <X className="w-4 h-4" />
             </button>
 
             <div className="space-y-1">
-              <h3 className="text-lg font-bold text-white">
+              <h3 className="text-lg font-bold">
                 {editingItem ? "Edit Milestone" : "Add New Milestone"}
               </h3>
             </div>
@@ -880,7 +1021,7 @@ export default function AdminPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, emoji: e.target.value })
                     }
-                    className="w-full px-2 py-2 rounded-xl bg-black/40 border border-white/10 text-center text-base focus:outline-none"
+                    className={`w-full px-2 py-2 rounded-xl text-center text-base focus:outline-none border ${isDark ? "bg-black/40 border-white/10" : "bg-slate-50 border-slate-300"}`}
                     placeholder="🏔️"
                   />
                 </div>
@@ -894,7 +1035,7 @@ export default function AdminPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, title: e.target.value })
                     }
-                    className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-xs text-white focus:outline-none"
+                    className={`w-full px-3 py-2 rounded-xl text-xs focus:outline-none border ${isDark ? "bg-black/40 border-white/10" : "bg-slate-50 border-slate-300"}`}
                     placeholder="e.g. Scuba dive in Great Barrier Reef"
                     required
                   />
@@ -910,7 +1051,7 @@ export default function AdminPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, category: e.target.value })
                   }
-                  className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-xs text-white focus:outline-none bg-[#0c101c]"
+                  className={`w-full px-3 py-2 rounded-xl text-xs focus:outline-none border ${isDark ? "bg-black/40 border-white/10" : "bg-slate-50 border-slate-300"}`}
                 >
                   <option value="Dream Trips & Bucket Destinations">
                     🌏 Dream Trips & Bucket Destinations
@@ -943,7 +1084,7 @@ export default function AdminPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, subcategory: e.target.value })
                   }
-                  className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-xs text-white focus:outline-none"
+                  className={`w-full px-3 py-2 rounded-xl text-xs focus:outline-none border ${isDark ? "bg-black/40 border-white/10" : "bg-slate-50 border-slate-300"}`}
                   placeholder="e.g. Mountains & Wilderness, Beaches, Unique Stays"
                 />
               </div>
@@ -959,7 +1100,7 @@ export default function AdminPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, location: e.target.value })
                     }
-                    className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-xs text-white focus:outline-none"
+                    className={`w-full px-3 py-2 rounded-xl text-xs focus:outline-none border ${isDark ? "bg-black/40 border-white/10" : "bg-slate-50 border-slate-300"}`}
                     placeholder="e.g. Ladakh"
                   />
                 </div>
@@ -973,7 +1114,7 @@ export default function AdminPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, targetYear: e.target.value })
                     }
-                    className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-xs text-white focus:outline-none"
+                    className={`w-full px-3 py-2 rounded-xl text-xs focus:outline-none border ${isDark ? "bg-black/40 border-white/10" : "bg-slate-50 border-slate-300"}`}
                     placeholder="e.g. 2026"
                   />
                 </div>
@@ -989,7 +1130,7 @@ export default function AdminPage() {
                     setFormData({ ...formData, notes: e.target.value })
                   }
                   rows={2}
-                  className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-xs text-white focus:outline-none"
+                  className={`w-full px-3 py-2 rounded-xl text-xs focus:outline-none border ${isDark ? "bg-black/40 border-white/10" : "bg-slate-50 border-slate-300"}`}
                   placeholder="Notes or memories..."
                 />
               </div>
@@ -998,7 +1139,7 @@ export default function AdminPage() {
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-3.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-xs transition-colors"
+                  className={`px-3.5 py-1.5 rounded-lg text-xs transition-colors ${isDark ? "bg-white/5 hover:bg-white/10 text-slate-300" : "bg-slate-100 hover:bg-slate-200 text-slate-700"}`}
                 >
                   Cancel
                 </button>
