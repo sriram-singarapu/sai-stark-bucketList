@@ -1,15 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
-const ADMIN_PASSWORDS = [
-  process.env.ADMIN_PASSWORD,
-  "Zoro@1815",
-  "admin123",
-  "saistark2025",
-  "saistark",
-  "1234",
-].filter(Boolean) as string[];
-
 export async function POST(request: Request) {
   try {
     const { password } = await request.json();
@@ -21,17 +12,24 @@ export async function POST(request: Request) {
       );
     }
 
-    const isValid = ADMIN_PASSWORDS.includes(password.trim());
+    const adminPassword = process.env.ADMIN_PASSWORD;
 
-    if (!isValid) {
+    if (!adminPassword) {
+      console.error("ADMIN_PASSWORD environment variable is not configured");
       return NextResponse.json(
-        { error: "Invalid admin password" },
+        { error: "Server authentication misconfigured" },
+        { status: 500 }
+      );
+    }
+
+    if (password.trim() !== adminPassword.trim()) {
+      return NextResponse.json(
+        { error: "Invalid admin credentials" },
         { status: 401 }
       );
     }
 
     const cookieStore = await cookies();
-    // Set admin session cookie
     cookieStore.set("bucket_admin_session", "authenticated_sai_stark", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -42,8 +40,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: "Admin login successful",
-      user: { role: "admin", name: "Sai Stark" },
+      message: "Admin authentication successful",
+      user: { role: "admin" },
     });
   } catch (error: any) {
     return NextResponse.json(
