@@ -34,8 +34,11 @@ const DEFAULT_GALLERY = [
 export async function GET() {
   try {
     await ConnectDB();
-    const user = await User.findOne().lean();
-    const gallery = user?.gallery && user.gallery.length > 0 ? user.gallery : DEFAULT_GALLERY;
+    const user: any = await User.findOne().lean();
+    const gallery =
+      user?.gallery && Array.isArray(user.gallery) && user.gallery.length > 0
+        ? user.gallery
+        : DEFAULT_GALLERY;
 
     return NextResponse.json({
       success: true,
