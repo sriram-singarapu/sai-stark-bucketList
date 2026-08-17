@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 
 const ADMIN_PASSWORDS = [
   process.env.ADMIN_PASSWORD,
+  "Zoro@1815",
   "admin123",
   "saistark2025",
   "saistark",
