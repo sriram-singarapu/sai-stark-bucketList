@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 export async function GET() {
   try {
     const cookieStore = await cookies();
@@ -10,7 +13,7 @@ export async function GET() {
 
     return NextResponse.json({
       isAdmin,
-      user: isAdmin ? { role: "admin", name: "Sai Stark" } : null,
+      user: isAdmin ? { role: "admin" } : null,
     });
   } catch (error: any) {
     return NextResponse.json(
